@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SuperStock — About</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <style>
+    /* ── About hero ──────────────────────────────────── */
+    .about-hero {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.12));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 3rem 2.5rem;
+      text-align: center;
+      margin-bottom: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .about-hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 65%);
+      pointer-events: none;
+    }
+
+    .about-hero .big-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .about-hero h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .about-hero p {
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    .version-badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--primary);
+      padding: 0.3rem 0.9rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 0.75rem;
+    }
+
+    /* ── Feature cards ───────────────────────────────── */
+    .about-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.2rem;
+      margin-bottom: 2rem;
+    }
+
+    .about-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+
+    .about-card h3 {
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      color: var(--text);
+    }
+
+    .about-card p,
+    .about-card li {
+      font-size: 0.83rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .about-card ul {
+      padding-left: 1.2rem;
+    }
+
+    .about-card li {
+      margin-bottom: 0.3rem;
+    }
+
+    /* ── Team section ────────────────────────────────── */
+    .team-section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .team-section-header h3 {
+      font-size: 1.1rem;
+      color: var(--text);
+      margin: 0;
+    }
+
+    .team-section-header .team-pill {
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: var(--primary);
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 0.2rem 0.7rem;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Responsive grid — fills columns automatically */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.4rem;
+      margin-bottom: 2.5rem;
+    }
+
+    /* Centre the last card when it sits alone on a row */
+    .team-grid .team-card:last-child:nth-child(3n - 2) {
+      grid-column: 2 / 3;
+    }
+
+    /* Glassmorphism card */
+    .team-card {
+      background: rgba(17, 24, 39, 0.55);
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+      border: 1px solid rgba(56, 189, 248, 0.12);
+      border-radius: 16px;
+      padding: 2rem 1.4rem 1.6rem;
+      text-align: center;
+      /* lift + glow transition */
+      transition:
+        transform 0.28s cubic-bezier(.34, 1.56, .64, 1),
+        box-shadow 0.28s ease,
+        border-color 0.28s ease;
+      cursor: default;
+    }
+
+    .team-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 20px 48px rgba(56, 189, 248, 0.14), 0 4px 16px rgba(0, 0, 0, 0.4);
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+
+    /* Circular photo */
+    .team-photo-wrap {
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 1.1rem;
+      border-radius: 50%;
+      padding: 3px;
+      /* ring gap */
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      transition: box-shadow 0.28s ease;
+    }
+
+    .team-card:hover .team-photo-wrap {
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.2), 0 0 24px rgba(56, 189, 248, 0.3);
+    }
+
+    .team-photo-wrap img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+      background: var(--card2);
+      /* fallback while image loads */
+      border: 2px solid var(--bg);
+      /* inner dark ring */
+    }
+
+    /* Name & role */
+    .team-card h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+      transition: color 0.22s ease;
+    }
+
+    .team-card:hover h4 {
+      color: #38bdf8;
+    }
+
+    .team-card .team-role {
+      font-size: 0.78rem;
+      color: var(--primary);
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      margin-bottom: 0.75rem;
+    }
+
+    .team-card .team-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* Responsive breakpoints */
+    @media (max-width: 860px) {
+      .team-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 520px) {
+      .team-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+
+    <main id="main-content">
+
+      <!-- Hero -->
+      <div class="about-hero">
+        <span class="big-icon">🛒</span>
+        <h1>About SuperStock</h1>
+        <p>SuperStock is a modern, browser-based inventory management system designed specifically for supermarkets and
+          grocery stores. Track products, monitor expiry dates, and keep your shelves fresh — all in one place.</p>
+        <span class="version-badge">Version 2.0.0 — 2026</span>
+      </div>
+
+      <!-- Key Features -->
+      <h3>Key Features</h3>
+      <div class="about-grid">
+        <div class="about-card">
+          <h3>📦 Product Tracking</h3>
+          <p>Manage your full inventory with production dates, expiry dates, quantities, prices and supplier info.</p>
+        </div>
+        <div class="about-card">
+          <h3>🔔 Smart Alerts</h3>
+          <p>Automatically flags products that are expiring soon or already expired, with configurable thresholds.</p>
+        </div>
+        <div class="about-card">
+          <h3>📈 Reports</h3>
+          <p>Interactive charts for stock by category, expiry breakdown, and total inventory value per category.</p>
+        </div>
+        <div class="about-card">
+          <h3>📂 Import / Export</h3>
+          <p>Backup your data as JSON or CSV. Restore from a JSON file at any time.</p>
+        </div>
+        <div class="about-card">
+          <h3>🔐 Secure Login</h3>
+          <p>Role-based access with Admin and Manager accounts. Session-based authentication.</p>
+        </div>
+        <div class="about-card">
+          <h3>⚙️ Customizable</h3>
+          <p>Set your store name, manager name, and alert threshold from the Settings page.</p>
+        </div>
+      </div>
+
+      <!-- Supported Categories -->
+      <h3>Supported Categories</h3>
+      <div class="about-card" style="max-width:600px;margin-bottom:2rem">
+        <ul>
+          <li>🥛 Dairy — Milk, cheese, yogurt, butter</li>
+          <li>🍞 Bakery — Bread, pastries, cakes</li>
+          <li>🥩 Meat — Chicken, beef, fish, deli</li>
+          <li>🥤 Beverages — Juices, water, soft drinks</li>
+          <li>🧊 Frozen — Frozen meals, ice cream</li>
+          <li>🍿 Snacks — Chips, crackers, nuts</li>
+          <li>🥦 Produce — Fruits, vegetables</li>
+          <li>🥫 Canned — Tinned goods, sauces</li>
+          <li>📦 Other — Miscellaneous items</li>
+        </ul>
+      </div>
+
+      <!-- ── Team Section ── -->
+      <div class="team-section-header">
+        <h3>👥 Meet the Team</h3>
+        <span class="team-pill">7 Members</span>
+      </div>
+
+      <!--
+        PHOTO INSTRUCTIONS
+        ──────────────────
+        Place your photos in the same folder as about.html.
+        Name them: member1.jpg, member2.jpg … member6.jpg
+        Recommended size: 200×200 px or larger square crop.
+        The CSS handles circular cropping and uniform sizing automatically.
+      -->
+      <div class="team-grid">
+
+        <!-- Member 1 -->
+        <div class="team-card">
+          <div class="team-photo-wrap">
+            <img src="images/member1.jpg" alt="Photo of Natnael Wubshet"
+              onerror="this.src='https://ui-avatars.com/api/?name=Natnael+Wubshet&background=0d1526&color=38bdf8&size=96'" />
+          </div>
+          <h4>Natnael Wubshet</h4>
+          <p class="team-role">Team Leader</p>
+          <p class="team-desc">Leads the team and built the core foundation — database config, connection layer, response handler, and authentication helper used by all API files.</p>
+        </div>
+
+        <!-- Member 2 -->
+        <div class="team-card">
+          <div class="team-photo-wrap">
+            <img src="images/member2.jpg" alt="Photo of Edmealem Menalu"
+              onerror="this.src='https://ui-avatars.com/api/?name=Edmealem+Menalu&background=0d1526&color=38bdf8&size=96'" />
+          </div>
+          <h4>Edmealem Menalu</h4>
+          <p class="team-role">Database Designer</p>
+          <p class="team-desc">Designed the full database schema and built the login, logout, and session check endpoints that secure every page in the system.</p>
+        </div>
+
+        <!-- Member 3 -->
+        <div class="team-card">
+          <div class="team-photo-wrap">
+            <img src="images/abri.jpg" alt="Photo of Zelalem Desta"
+              onerror="this.src='https://ui-avatars.com/api/?name=Zelalem+Desta&background=0d1526&color=38bdf8&size=96'" />
+          </div>
+          <h4>Zelalem Desta</h4>
+          <p class="team-role">Product Developer</p>
+          <p class="team-desc">Built the product listing and add/delete endpoints, handling all validation, category checks, and database queries for product management.</p>
+        </div>
+
+        <!-- Member 4 -->
+        <div class="team-card">
+          <div class="team-photo-wrap">
+            <img src="images/member4.jpg" alt="Photo of Amariya Tesfaw"
+              onerror="this.src='https://ui-avatars.com/api/?name=Amariya+Tesfaw&background=0d1526&color=38bdf8&size=96'" />
+          </div>
+          <h4>Amariya Tesfaw</h4>
+          <p class="team-role">Product Developer</p>
+          <p class="team-desc">Developed product update and bulk operations — edit existing products, bulk delete, and bulk dispose with full server-side validation.</p>
+        </div>
+
+        <!-- Member 5 -->
+        <div class="team-card">
+          <div class="team-photo-wrap">
+            <img src="images/member5.jpg" alt="Photo of Meron Almaw"
+              onerror="this.src='https://ui-avatars.com/api/?name=Meron+Almaw&background=0d1526&color=38bdf8&size=96'" />
+          </div>
+          <h4>Meron Almaw</h4>
+          <p class="team-role">Category & User Management</p>
+          <p class="team-desc">Built the full category management and user management system — list, add, delete categories and users, and password change functionality.</p>
+        </div>
+
+        <!-- Member 6 -->
+        <div class="team-card">
+          <div class="team-photo-wrap">
+            <img src="images/member6.jpg" alt="Photo of Abreham Belihu"
+              onerror="this.src='https://ui-avatars.com/api/?name=Abreham+Belihu&background=0d1526&color=38bdf8&size=96'" />
+          </div>
+          <h4>Abreham Belihu</h4>
+          <p class="team-role">Settings Developer</p>
+          <p class="team-desc">Implemented the application settings system — reading and updating store name, alert thresholds, and notification configuration.</p>
+        </div>
+
+        <!-- Member 7 -->
+        <div class="team-card">
+          <div class="team-photo-wrap">
+            <img src="images/member7.jpg" alt="Photo of Abenezer Abera"
+              onerror="this.src='https://ui-avatars.com/api/?name=Abenezer+Abera&background=0d1526&color=38bdf8&size=96'" />
+          </div>
+          <h4>Abenezer Abera</h4>
+          <p class="team-role">Notifications Developer</p>
+          <p class="team-desc">Developed the Telegram notification system including the daily report script and browser test endpoint for verifying notification delivery.</p>
+        </div>
+
+      </div><!-- /.team-grid -->
+
+      <!-- Contact -->
+      <h3>Contact &amp; Support</h3>
+      <div class="about-card" style="max-width:500px">
+        <ul style="list-style:none;padding:0">
+          <li style="margin-bottom:0.5rem">📧 <a href="mailto:group9project@gmail.com"
+              style="color:var(--primary)">group9project@gmail.com</a></li>
+          <li style="margin-bottom:0.5rem">📞 <a href="tel:+251941168367" style="color:var(--primary)">+251 941 168 367</a>
+          </li>
+          <li style="margin-bottom:0.5rem">📍 Hawassa University, Hawassa, Ethiopia</li>
+          <li>🕐 Mon–Fri: 8:00 AM – 6:00 PM</li>
+        </ul>
+      </div>
+
+    </main>
+  </div><!-- /.layout -->
+
+  <div id="footer-placeholder"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/shared.js?v=2"></script>
+  <script>
+    (async function init() {
+      const currentUser = await requireAuth();
+      if (!currentUser) return;
+      injectHeader('about.html');
+      injectFooter();
+      await getSettings();
+      const products = await getProducts();
+      updateAlertBadge(products);
+    })();
+  </script>
+</body>
+
+</html>

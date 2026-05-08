@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperStock — Add Product</title>
+  <link rel="stylesheet" href="assets/css/style.css"/>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+
+    <main id="main-content">
+
+      <h2>➕ Add New Product</h2>
+      <form class="product-form" onsubmit="handleAddProduct(event)">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Product Name *</label>
+            <input type="text" id="f-name" placeholder="e.g. Whole Milk 1L" required/>
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="f-category" required>
+              <option value="">Loading categories...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Quantity *</label>
+            <input type="number" id="f-qty" placeholder="e.g. 50" min="0" required/>
+          </div>
+          <div class="form-group">
+            <label>Price ($) *</label>
+            <input type="number" id="f-price" placeholder="e.g. 2.99" min="0" step="0.01" required/>
+          </div>
+          <div class="form-group">
+            <label>Production Date *</label>
+            <input type="date" id="f-production" required/>
+          </div>
+          <div class="form-group">
+            <label>Expiry Date *</label>
+            <input type="date" id="f-expiry" required/>
+          </div>
+          <div class="form-group full-width">
+            <label>Supplier</label>
+            <input type="text" id="f-supplier" placeholder="e.g. FreshFarm Co."/>
+          </div>
+          <div class="form-group full-width">
+            <label>Notes</label>
+            <textarea id="f-notes" placeholder="Any additional notes..."></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">✅ Add Product</button>
+          <button type="reset" class="btn-secondary">🔄 Reset</button>
+        </div>
+      </form>
+
+    </main>
+  </div><!-- /.layout -->
+
+  <div id="footer-placeholder"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/shared.js?v=2"></script>
+  <script>
+    // ── Page initialisation ──────────────────────────────────
+    // All setup is inside an async function so we can use await.
+    (async function init() {
+      // 1. Check the user is logged in (redirects to index.html if not)
+      await requireAuth();
+
+      // 2. Build the header and footer
+      injectHeader('add.html');
+      injectFooter();
+
+      // 3. Load settings (needed for alert badge thresholds)
+      await getSettings();
+
+      // 4. Load categories from the server and populate the dropdown
+      const categories = await getCategories();
+      const select = document.getElementById('f-category');
+      select.innerHTML = '<option value="">Select category</option>';
+      categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat.id;       // use the database ID as the value
+        option.textContent = cat.name;
+        select.appendChild(option);
+      });
+
+      // 5. Update the alert badge
+      const products = await getProducts();
+      updateAlertBadge(products);
+    })();
+
+    // ── Add product form handler ─────────────────────────────
+    async function handleAddProduct(e) {
+      e.preventDefault();
+
+      const production_date = document.getElementById('f-production').value;
+      const expiry_date     = document.getElementById('f-expiry').value;
+
+      // Client-side date check (the server also validates this)
+      if (expiry_date <= production_date) {
+        showToast('⚠️ Expiry must be after production date.', true);
+        return;
+      }
+
+      try {
+        // Call the addProduct() helper from shared.js
+        // It sends the data to add_product.php and returns the new product
+        await addProduct({
+          name:            document.getElementById('f-name').value.trim(),
+          category_id:     document.getElementById('f-category').value,
+          quantity:        document.getElementById('f-qty').value,
+          price:           document.getElementById('f-price').value,
+          production_date: production_date,
+          expiry_date:     expiry_date,
+          supplier:        document.getElementById('f-supplier').value.trim(),
+          notes:           document.getElementById('f-notes').value.trim(),
+        });
+
+        showToast('✅ Product added successfully!');
+        document.querySelector('.product-form').reset();
+
+        // Refresh the alert badge count
+        const products = await getProducts();
+        updateAlertBadge(products);
+
+      } catch (err) {
+        // apiFetch() already showed the error toast — nothing more to do here
+      }
+    }
+  </script>
+</body>
+</html>

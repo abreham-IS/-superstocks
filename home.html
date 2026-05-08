@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperStock — Home</title>
+  <link rel="stylesheet" href="assets/css/style.css"/>
+  <style>
+
+    /* ── Remove default main padding for full-bleed hero ── */
+    #main-content {
+      padding: 0 !important;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Full-screen hero with background image ─────────── */
+    .hero {
+      position: relative;
+      min-height: calc(100vh - var(--header-h));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    /* Background image layer */
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background-image: url('https://images.unsplash.com/photo-1542838132-92c53300491e?w=1600&q=80&fit=crop');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      /* Slight zoom-in on load for a polished feel */
+      animation: heroZoom 12s ease-out forwards;
+    }
+
+    @keyframes heroZoom {
+      from { transform: scale(1.06); }
+      to   { transform: scale(1.0);  }
+    }
+
+    /* Dark overlay so text is always readable */
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        160deg,
+        rgba(5, 10, 25, 0.72) 0%,
+        rgba(10, 20, 50, 0.60) 50%,
+        rgba(5, 10, 25, 0.75) 100%
+      );
+    }
+
+    /* Content sits above the overlay */
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 760px;
+      padding: 3rem 2rem;
+    }
+
+    /* Subtle top badge */
+    .hero-badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.18);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #7dd3fc;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 0.35rem 1rem;
+      border-radius: 20px;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-title {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.15;
+      margin-bottom: 1.2rem;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+    }
+
+    .hero-title span {
+      /* Gradient accent on "SuperStock" */
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-desc {
+      font-size: clamp(0.95rem, 2vw, 1.1rem);
+      color: rgba(226, 232, 240, 0.88);
+      line-height: 1.8;
+      max-width: 580px;
+      margin: 0 auto 2.2rem;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.4);
+    }
+
+    /* Animated fade-up entrance */
+    .hero-badge,
+    .hero-title,
+    .hero-desc {
+      opacity: 0;
+      transform: translateY(24px);
+      animation: fadeUp 0.7s ease forwards;
+    }
+    .hero-badge { animation-delay: 0.1s; }
+    .hero-title { animation-delay: 0.25s; }
+    .hero-desc  { animation-delay: 0.4s; }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Light mode adjustments — removed (dark only) */
+
+    @media (max-width: 600px) {
+      .hero-content { padding: 2rem 1.2rem; }
+    }
+
+  </style>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+
+    <main id="main-content">
+
+      <section class="hero">
+        <!-- Background image -->
+        <div class="hero-bg"></div>
+        <!-- Dark overlay -->
+        <div class="hero-overlay"></div>
+
+        <!-- Text content -->
+        <div class="hero-content">
+          <div class="hero-badge">🛒 Inventory Management System</div>
+
+          <h1 class="hero-title">
+            Welcome to <span>SuperStock</span>
+          </h1>
+
+          <p class="hero-desc">
+            Your all-in-one supermarket inventory system. Track products,
+            monitor expiry dates, generate reports and keep your shelves fresh.
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div id="footer-placeholder"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/shared.js?v=2"></script>
+  <script>
+    (async function init() {
+      await requireAuth();
+      injectHeader('home.html');
+      injectFooter();
+      await getSettings();
+      const products = await getProducts();
+      updateAlertBadge(products);
+    })();
+  </script>
+</body>
+</html>

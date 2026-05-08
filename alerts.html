@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperStock — Alerts</title>
+  <link rel="stylesheet" href="assets/css/style.css"/>
+  <style>
+    .alert-section-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin: 1.5rem 0 0.6rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .alert-item.lowstock { border-left-color: #fb923c; }
+  </style>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+
+    <main id="main-content">
+      <h2>🔔 Alerts &amp; Notifications</h2>
+      <div id="alerts-container"></div>
+    </main>
+  </div>
+
+  <div id="footer-placeholder"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/shared.js?v=2"></script>
+  <script>
+    (async function init() {
+      await requireAuth();
+      injectHeader('alerts.html');
+      injectFooter();
+
+      await getSettings();
+      const products = await getProducts();
+      updateAlertBadge(products);
+
+      // Filter using new field names from the PHP API
+      const expiryIssues = products
+        .filter(p => getStatus(p.expiry_date) !== 'good')
+        .sort((a, b) => daysUntilExpiry(a.expiry_date) - daysUntilExpiry(b.expiry_date));
+
+      const lowStockIssues = products
+        .filter(p => isLowStock(p))
+        .sort((a, b) => parseInt(a.quantity) - parseInt(b.quantity));
+
+      const container = document.getElementById('alerts-container');
+
+      if (!expiryIssues.length && !lowStockIssues.length) {
+        container.innerHTML = '<div class="no-alerts">🎉 All products are in good condition!</div>';
+        return;
+      }
+
+      let html = '';
+
+      if (expiryIssues.length) {
+        html += '<div class="alert-section-title">⏰ Expiry Alerts (' + expiryIssues.length + ')</div>';
+        html += expiryIssues.map(p => {
+          const days   = daysUntilExpiry(p.expiry_date);
+          const status = getStatus(p.expiry_date);
+          const msg    = status === 'expired'
+            ? 'Expired ' + Math.abs(days) + ' day(s) ago'
+            : 'Expires in ' + days + ' day(s) — ' + formatDate(p.expiry_date);
+          return '<div class="alert-item ' + (status === 'expired' ? 'expired' : '') + '">' +
+            '<span class="alert-icon">' + (status === 'expired' ? '🚫' : '⚠️') + '</span>' +
+            '<div class="alert-info">' +
+              '<strong>' + p.name + '</strong> &nbsp;|&nbsp; ' + p.category_name + ' &nbsp;|&nbsp; Qty: ' + p.quantity +
+              '<p>' + msg + '</p>' +
+            '</div>' +
+            statusBadge(status) +
+            '</div>';
+        }).join('');
+      }
+
+      if (lowStockIssues.length) {
+        html += '<div class="alert-section-title">📉 Low Stock Alerts (' + lowStockIssues.length + ')</div>';
+        html += lowStockIssues.map(p =>
+          '<div class="alert-item lowstock">' +
+            '<span class="alert-icon">📉</span>' +
+            '<div class="alert-info">' +
+              '<strong>' + p.name + '</strong> &nbsp;|&nbsp; ' + p.category_name +
+              '<p>Only <strong>' + p.quantity + '</strong> unit(s) remaining — restock recommended</p>' +
+            '</div>' +
+            lowStockBadge() +
+          '</div>'
+        ).join('');
+      }
+
+      container.innerHTML = html;
+    })();
+  </script>
+</body>
+</html>

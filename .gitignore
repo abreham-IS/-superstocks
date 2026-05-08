@@ -1,0 +1,9 @@
+# Database credentials — never commit this file
+config.php
+
+# Log files
+logs/notify.log
+
+# OS files
+.DS_Store
+Thumbs.db

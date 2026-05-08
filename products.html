@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperStock — Products</title>
+  <link rel="stylesheet" href="assets/css/style.css"/>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+
+    <main id="main-content">
+
+      <h2>All Products</h2>
+      <div class="toolbar">
+        <input type="text" id="search-input" placeholder="🔍 Search products..." oninput="render()"/>
+        <select id="filter-cat" onchange="render()">
+          <option value="">All Categories</option>
+        </select>
+        <select id="filter-status" onchange="render()">
+          <option value="">All Status</option>
+          <option value="good">Good</option>
+          <option value="expiring">Expiring Soon</option>
+          <option value="expired">Expired</option>
+          <option value="lowstock">Low Stock</option>
+        </select>
+      </div>
+
+      <table class="product-table">
+        <thead>
+          <tr>
+            <th class="col-check">
+              <input type="checkbox" id="check-all" title="Select all" onchange="toggleAll(this)"/>
+            </th>
+            <th>ID</th><th>Product</th><th>Category</th><th>Qty</th>
+            <th>Price</th><th>Production</th><th>Expiry</th>
+            <th>Days Left</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="prod-tbody"></tbody>
+      </table>
+
+    </main>
+  </div><!-- /.layout -->
+
+  <!-- Batch Action Bar -->
+  <div class="batch-bar" id="batch-bar">
+    <span class="batch-bar-count" id="batch-count">0 selected</span>
+    <button class="btn-batch-dispose" onclick="batchDispose()">📦 Mark as Disposed</button>
+    <button class="btn-danger" onclick="batchDelete()">🗑️ Bulk Delete</button>
+    <button class="btn-secondary" onclick="clearSelection()">✕ Cancel</button>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <h3>✏️ Edit Product</h3>
+      <form onsubmit="saveEdit(event)">
+        <input type="hidden" id="m-id"/>
+        <div class="form-grid">
+          <div class="form-group"><label>Name</label><input type="text" id="m-name" required/></div>
+          <div class="form-group"><label>Category</label>
+            <select id="m-category" required>
+              <option value="">Loading...</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Quantity</label><input type="number" id="m-qty" min="0" required/></div>
+          <div class="form-group"><label>Price ($)</label><input type="number" id="m-price" min="0" step="0.01" required/></div>
+          <div class="form-group"><label>Production Date</label><input type="date" id="m-production" required/></div>
+          <div class="form-group"><label>Expiry Date</label><input type="date" id="m-expiry" required/></div>
+          <div class="form-group full-width"><label>Supplier</label><input type="text" id="m-supplier"/></div>
+          <div class="form-group full-width"><label>Notes</label><textarea id="m-notes"></textarea></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Save Changes</button>
+          <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="footer-placeholder"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/shared.js?v=2"></script>
+  <script>
+    // ── Page-level state ─────────────────────────────────────
+    // We keep the product list in memory so render() can filter
+    // it without making a new server request every time.
+    let allProducts = [];
+
+    // ── Page initialisation ──────────────────────────────────
+    (async function init() {
+      // 1. Verify the user is logged in
+      await requireAuth();
+
+      // 2. Build header and footer
+      injectHeader('products.html');
+      injectFooter();
+
+      // 3. Load settings (needed for threshold comparisons)
+      await getSettings();
+
+      // 4. Load categories and populate both dropdowns
+      const categories = await getCategories();
+
+      // Filter toolbar dropdown
+      const filterCat = document.getElementById('filter-cat');
+      filterCat.innerHTML = '<option value="">All Categories</option>';
+      categories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.id;
+        opt.textContent = cat.name;
+        filterCat.appendChild(opt);
+      });
+
+      // Edit modal dropdown
+      const modalCat = document.getElementById('m-category');
+      modalCat.innerHTML = '';
+      categories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.id;
+        opt.textContent = cat.name;
+        modalCat.appendChild(opt);
+      });
+
+      // 5. Load products and render the table
+      allProducts = await getProducts();
+      updateAlertBadge(allProducts);
+      render();
+    })();
+
+    // ── Search highlight helper ──────────────────────────────
+    function highlight(text, query) {
+      if (!query) return text;
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return text.replace(new RegExp('(' + escaped + ')', 'gi'),
+        '<mark class="search-hl">$1</mark>');
+    }
+
+    // ── Render table ─────────────────────────────────────────
+    function render() {
+      const search      = document.getElementById('search-input').value.trim();
+      const searchLower = search.toLowerCase();
+      const catFilter   = document.getElementById('filter-cat').value;
+      const stFilter    = document.getElementById('filter-status').value;
+
+      let list = allProducts.filter(p => {
+        const matchesSearch =
+          p.name.toLowerCase().includes(searchLower) ||
+          p.category_name.toLowerCase().includes(searchLower) ||
+          (p.supplier || '').toLowerCase().includes(searchLower);
+
+        const matchesCat = !catFilter || String(p.category_id) === String(catFilter);
+
+        const matchesStatus = stFilter === 'lowstock'
+          ? isLowStock(p)
+          : (!stFilter || getStatus(p.expiry_date) === stFilter);
+
+        return matchesSearch && matchesCat && matchesStatus;
+      });
+
+      const tbody = document.getElementById('prod-tbody');
+
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No products found.</td></tr>';
+        updateBatchBar();
+        return;
+      }
+
+      tbody.innerHTML = list.map(p => {
+        const days     = daysUntilExpiry(p.expiry_date);
+        const low      = isLowStock(p);
+        const hl       = t => highlight(String(t), search);
+        const lowBadge = low ? ' ' + lowStockBadge() : '';
+
+        return '<tr class="' + (low ? 'low-stock-row' : '') + '" data-id="' + p.id + '">' +
+          '<td class="col-check"><input type="checkbox" class="row-check" data-id="' + p.id + '" onchange="updateBatchBar()"/></td>' +
+          '<td>#' + p.id + '</td>' +
+          '<td><strong>' + hl(p.name) + '</strong></td>' +
+          '<td>' + hl(p.category_name) + '</td>' +
+          '<td>' + p.quantity + '</td>' +
+          '<td>' + parseFloat(p.price).toFixed(2) + '</td>' +
+          '<td>' + formatDate(p.production_date) + '</td>' +
+          '<td>' + formatDate(p.expiry_date) + '</td>' +
+          '<td>' + daysLabel(days) + '</td>' +
+          '<td>' + statusBadge(getStatus(p.expiry_date)) + lowBadge + '</td>' +
+          '<td>' +
+            '<button class="btn-edit" onclick="openModal(' + p.id + ')">✏️ Edit</button>' +
+            '<button class="btn-delete" onclick="del(' + p.id + ')">🗑️ Del</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+
+      const allChecks = document.querySelectorAll('.row-check');
+      const checkAll  = document.getElementById('check-all');
+      checkAll.checked = allChecks.length > 0 && [...allChecks].every(c => c.checked);
+      checkAll.indeterminate = !checkAll.checked && [...allChecks].some(c => c.checked);
+      updateBatchBar();
+    }
+
+    // ── Checkbox helpers ─────────────────────────────────────
+    function toggleAll(master) {
+      document.querySelectorAll('.row-check').forEach(c => c.checked = master.checked);
+      updateBatchBar();
+    }
+
+    function getSelectedIds() {
+      return [...document.querySelectorAll('.row-check:checked')].map(c => parseInt(c.dataset.id));
+    }
+
+    function updateBatchBar() {
+      const ids = getSelectedIds();
+      document.getElementById('batch-count').textContent = ids.length + ' selected';
+      document.getElementById('batch-bar').classList.toggle('visible', ids.length > 0);
+
+      const all          = document.querySelectorAll('.row-check');
+      const ca           = document.getElementById('check-all');
+      if (all.length === 0) { ca.checked = false; ca.indeterminate = false; return; }
+      const checkedCount = [...all].filter(c => c.checked).length;
+      ca.checked         = checkedCount === all.length;
+      ca.indeterminate   = checkedCount > 0 && checkedCount < all.length;
+    }
+
+    function clearSelection() {
+      document.querySelectorAll('.row-check').forEach(c => c.checked = false);
+      document.getElementById('check-all').checked = false;
+      updateBatchBar();
+    }
+
+    // ── Batch actions ────────────────────────────────────────
+    async function batchDelete() {
+      const ids = getSelectedIds();
+      if (!ids.length) return;
+      if (!confirm('Delete ' + ids.length + ' selected product(s)?')) return;
+      try {
+        const result = await bulkDeleteProducts(ids);
+        showToast('🗑️ ' + result.deleted + ' product(s) deleted.');
+        allProducts = await getProducts();
+        updateAlertBadge(allProducts);
+        render();
+      } catch (err) {}
+    }
+
+    async function batchDispose() {
+      const ids = getSelectedIds();
+      if (!ids.length) return;
+      if (!confirm('Mark ' + ids.length + ' product(s) as disposed (set qty to 0)?')) return;
+      try {
+        const result = await bulkDisposeProducts(ids);
+        showToast('📦 ' + result.updated + ' product(s) marked as disposed.');
+        allProducts = await getProducts();
+        updateAlertBadge(allProducts);
+        render();
+      } catch (err) {}
+    }
+
+    // ── Single row actions ───────────────────────────────────
+    async function del(id) {
+      if (!confirm('Delete this product?')) return;
+      try {
+        await deleteProduct(id);
+        showToast('🗑️ Product deleted.');
+        allProducts = await getProducts();
+        updateAlertBadge(allProducts);
+        render();
+      } catch (err) {}
+    }
+
+    function openModal(id) {
+      const p = allProducts.find(p => String(p.id) === String(id));
+      if (!p) return;
+      document.getElementById('m-id').value         = p.id;
+      document.getElementById('m-name').value       = p.name;
+      document.getElementById('m-category').value   = p.category_id;
+      document.getElementById('m-qty').value        = p.quantity;
+      document.getElementById('m-price').value      = p.price;
+      document.getElementById('m-production').value = p.production_date;
+      document.getElementById('m-expiry').value     = p.expiry_date;
+      document.getElementById('m-supplier').value   = p.supplier || '';
+      document.getElementById('m-notes').value      = p.notes || '';
+      document.getElementById('modal-overlay').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.add('hidden');
+    }
+
+    async function saveEdit(e) {
+      e.preventDefault();
+      try {
+        await updateProduct({
+          id:              document.getElementById('m-id').value,
+          name:            document.getElementById('m-name').value.trim(),
+          category_id:     document.getElementById('m-category').value,
+          quantity:        document.getElementById('m-qty').value,
+          price:           document.getElementById('m-price').value,
+          production_date: document.getElementById('m-production').value,
+          expiry_date:     document.getElementById('m-expiry').value,
+          supplier:        document.getElementById('m-supplier').value.trim(),
+          notes:           document.getElementById('m-notes').value.trim(),
+        });
+        showToast('✅ Product updated!');
+        closeModal();
+        allProducts = await getProducts();
+        updateAlertBadge(allProducts);
+        render();
+      } catch (err) {}
+    }
+
+    document.getElementById('modal-overlay').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+  </script>
+</body>
+</html>

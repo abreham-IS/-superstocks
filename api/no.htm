@@ -1,0 +1,39 @@
+<html>
+<head>
+    <h3>Enter Your VoterId</h3>
+</head>
+<body>
+    <form action="retrive.php" method="post">
+        Enter ID:
+        <input type=" text" name="voter" requierd>
+        <input type="submit" name="submit">
+</body>
+
+    </html>
+    <?php
+    if(isset($_POST['voter']))
+    {
+            $voterid=$POST['voter'];
+    };
+    else
+    {
+        echo "id is requered";
+    }
+    $conn=new mysqli("localhost","root","","personDB");
+    if($conn->connect_error)
+    {
+        echo "connection failed".$conn->connect_error;
+    }
+    $sql="SELECT name,age,sex,place FROM pesone WHERE voterID=?";
+    $stmt=$conn->prepare($sql);
+    $stmt->bind_params('S',$voterid);
+    $stmt->excute();
+    $result=$stmt->get_result();
+    if($result->row_nums > 0){
+
+        while($row=$result->fetch_assoc())
+        {
+       echo "name".
+        }
+    }
+    ?>

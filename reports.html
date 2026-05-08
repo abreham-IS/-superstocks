@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperStock — Reports</title>
+  <link rel="stylesheet" href="assets/css/style.css"/>
+  <script src="assets/js/chart.min.js"></script>
+  <style>
+    .summary-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1rem; margin-bottom:1.8rem; }
+    .summary-pill { background:var(--card2); border:1px solid var(--border); border-radius:10px; padding:1rem; text-align:center; transition: transform 0.2s, box-shadow 0.2s; }
+    .summary-pill:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(56,189,248,0.1); }
+    .summary-pill .val { font-size:1.5rem; font-weight:700; color:var(--primary); }
+    .summary-pill .lbl { font-size:0.75rem; color:var(--muted); margin-top:0.2rem; }
+  </style>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+
+    <main id="main-content">
+
+      <h2>📈 Reports</h2>
+      <div class="summary-row" id="summary-row"></div>
+
+      <!-- Charts -->
+      <div class="chart-row">
+        <div class="chart-card">
+          <h3>🔴 Expiry Status Breakdown</h3>
+          <canvas id="chart-expiry" height="240"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>📦 Stock Quantity by Category</h3>
+          <canvas id="chart-category" height="240"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card" style="grid-column:1/-1">
+          <h3>💰 Inventory Value by Category ($)</h3>
+          <canvas id="chart-value" height="160"></canvas>
+        </div>
+      </div>
+
+    </main>
+  </div><!-- /.layout -->
+
+  <div id="footer-placeholder"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/shared.js?v=2"></script>
+  <script>
+    (async function init() {
+      // 1. Check login
+      await requireAuth();
+
+      // 2. Header and footer
+      injectHeader('reports.html');
+      injectFooter();
+
+      // 3. Load settings (needed for threshold comparisons)
+      await getSettings();
+
+      // 4. Load products from the server
+      const products = await getProducts();
+
+      // 5. Calculate summary numbers using new field names
+      const expired  = products.filter(p => getStatus(p.expiry_date) === 'expired').length;
+      const expiring = products.filter(p => getStatus(p.expiry_date) === 'expiring').length;
+      const good     = products.filter(p => getStatus(p.expiry_date) === 'good').length;
+      const lowStock = products.filter(p => isLowStock(p)).length;
+      const totalQty = products.reduce((a, p) => a + parseInt(p.quantity), 0);
+      const totalVal = products.reduce((a, p) => a + parseFloat(p.quantity) * parseFloat(p.price), 0);
+
+      // 6. Update the alert badge
+      updateAlertBadge(products);
+
+      // 7. Summary pills
+      document.getElementById('summary-row').innerHTML =
+        '<div class="summary-pill"><div class="val">' + products.length + '</div><div class="lbl">Total Products</div></div>' +
+        '<div class="summary-pill"><div class="val">' + totalQty + '</div><div class="lbl">Total Units</div></div>' +
+        '<div class="summary-pill"><div class="val">' + totalVal.toFixed(0) + '</div><div class="lbl">Total Value ($)</div></div>' +
+        '<div class="summary-pill"><div class="val" style="color:var(--warning)">' + expiring + '</div><div class="lbl">Expiring Soon</div></div>' +
+        '<div class="summary-pill"><div class="val" style="color:var(--danger)">' + expired + '</div><div class="lbl">Expired</div></div>' +
+        '<div class="summary-pill"><div class="val" style="color:#fb923c">' + lowStock + '</div><div class="lbl">Low Stock</div></div>';
+
+      const palette = ['#38bdf8','#818cf8','#4ade80','#fbbf24','#f87171','#fb923c','#a78bfa','#34d399','#f472b6'];
+
+      // 8. Expiry doughnut chart
+      new Chart(document.getElementById('chart-expiry'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Good', 'Expiring Soon', 'Expired'],
+          datasets: [{
+            data: [good, expiring, expired],
+            backgroundColor: ['rgba(74,222,128,0.8)', 'rgba(251,191,36,0.8)', 'rgba(248,113,113,0.8)'],
+            borderColor:     ['#4ade80', '#fbbf24', '#f87171'],
+            borderWidth: 2,
+            hoverOffset: 10,
+          }]
+        },
+        options: {
+          cutout: '65%',
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 12 }, padding: 16 } }
+          }
+        }
+      });
+
+      // 9. Category quantity bar chart — use category_name and quantity
+      const cats = {};
+      products.forEach(p => {
+        cats[p.category_name] = (cats[p.category_name] || 0) + parseInt(p.quantity);
+      });
+      const sortedCats = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+
+      new Chart(document.getElementById('chart-category'), {
+        type: 'bar',
+        data: {
+          labels: sortedCats.map(([c]) => c),
+          datasets: [{
+            label: 'Units in Stock',
+            data: sortedCats.map(([, v]) => v),
+            backgroundColor: sortedCats.map((_, i) => palette[i % palette.length] + 'bb'),
+            borderColor:     sortedCats.map((_, i) => palette[i % palette.length]),
+            borderWidth: 1.5,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+          }
+        }
+      });
+
+      // 10. Inventory value horizontal bar chart
+      const vals = {};
+      products.forEach(p => {
+        vals[p.category_name] = (vals[p.category_name] || 0) + parseFloat(p.quantity) * parseFloat(p.price);
+      });
+      const sortedVals = Object.entries(vals).sort((a, b) => b[1] - a[1]);
+
+      new Chart(document.getElementById('chart-value'), {
+        type: 'bar',
+        data: {
+          labels: sortedVals.map(([c]) => c),
+          datasets: [{
+            label: 'Value ($)',
+            data: sortedVals.map(([, v]) => parseFloat(v.toFixed(2))),
+            backgroundColor: sortedVals.map((_, i) => palette[i % palette.length] + 'bb'),
+            borderColor:     sortedVals.map((_, i) => palette[i % palette.length]),
+            borderWidth: 1.5,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { color: '#94a3b8', callback: v => '$' + v },
+              grid: { color: 'rgba(255,255,255,0.06)' }
+            },
+            y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperStock — Dashboard</title>
+  <link rel="stylesheet" href="assets/css/style.css"/>
+  <script src="assets/js/chart.min.js"></script>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+
+    <main id="main-content">
+
+      <h2>Dashboard Overview</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-icon">📦</span>
+          <div><p class="stat-label">Total Products</p><p class="stat-value" id="stat-total">0</p></div>
+        </div>
+        <div class="stat-card warning">
+          <span class="stat-icon">⚠️</span>
+          <div><p class="stat-label">Expiring Soon</p><p class="stat-value" id="stat-expiring">0</p></div>
+        </div>
+        <div class="stat-card danger">
+          <span class="stat-icon">🚫</span>
+          <div><p class="stat-label">Expired</p><p class="stat-value" id="stat-expired">0</p></div>
+        </div>
+        <div class="stat-card success">
+          <span class="stat-icon">✅</span>
+          <div><p class="stat-label">Good Stock</p><p class="stat-value" id="stat-good">0</p></div>
+        </div>
+        <div class="stat-card" style="border-left-color:#fb923c">
+          <span class="stat-icon">📉</span>
+          <div><p class="stat-label">Low Stock Items</p><p class="stat-value" id="stat-lowstock" style="color:#fb923c">0</p></div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="chart-row">
+        <div class="chart-card">
+          <h3>📊 Expiry Status Distribution</h3>
+          <canvas id="chart-expiry" height="220"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>📦 Stock Quantity by Category</h3>
+          <canvas id="chart-category" height="220"></canvas>
+        </div>
+      </div>
+
+      <h3>Recent Products</h3>
+      <table class="product-table">
+        <thead>
+          <tr>
+            <th>Product</th><th>Category</th><th>Qty</th>
+            <th>Production Date</th><th>Expiry Date</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="dash-tbody"></tbody>
+      </table>
+
+    </main>
+  </div><!-- /.layout -->
+
+  <div id="footer-placeholder"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/shared.js?v=2"></script>
+  <script>
+    (async function init() {
+      // 1. Check login — redirects to index.html if session is invalid
+      await requireAuth();
+
+      // 2. Header and footer
+      injectHeader('dashboard.html');
+      injectFooter();
+
+      // 3. Load settings (needed for threshold comparisons)
+      await getSettings();
+
+      // 4. Load products from the server
+      const products = await getProducts();
+
+      // 5. Count each status using the new field name: expiry_date
+      const expired  = products.filter(p => getStatus(p.expiry_date) === 'expired').length;
+      const expiring = products.filter(p => getStatus(p.expiry_date) === 'expiring').length;
+      const good     = products.filter(p => getStatus(p.expiry_date) === 'good').length;
+      const lowStock = products.filter(p => isLowStock(p)).length;
+
+      // 6. Update the stat cards
+      document.getElementById('stat-total').textContent    = products.length;
+      document.getElementById('stat-expired').textContent  = expired;
+      document.getElementById('stat-expiring').textContent = expiring;
+      document.getElementById('stat-good').textContent     = good;
+      document.getElementById('stat-lowstock').textContent = lowStock;
+
+      // 7. Update the alert badge
+      updateAlertBadge(products);
+
+      // 8. Expiry doughnut chart
+      new Chart(document.getElementById('chart-expiry'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Good', 'Expiring Soon', 'Expired'],
+          datasets: [{
+            data: [good, expiring, expired],
+            backgroundColor: ['rgba(74,222,128,0.8)', 'rgba(251,191,36,0.8)', 'rgba(248,113,113,0.8)'],
+            borderColor:     ['#4ade80', '#fbbf24', '#f87171'],
+            borderWidth: 2,
+            hoverOffset: 10,
+          }]
+        },
+        options: {
+          cutout: '68%',
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 12 }, padding: 16 } },
+            tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed } }
+          }
+        }
+      });
+
+      // 9. Category bar chart — use category_name and quantity (new field names)
+      const cats = {};
+      products.forEach(p => {
+        cats[p.category_name] = (cats[p.category_name] || 0) + parseInt(p.quantity);
+      });
+      const sortedCats = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+      const catColors  = ['#38bdf8','#818cf8','#4ade80','#fbbf24','#f87171','#fb923c','#a78bfa','#34d399','#f472b6'];
+
+      new Chart(document.getElementById('chart-category'), {
+        type: 'bar',
+        data: {
+          labels: sortedCats.map(([c]) => c),
+          datasets: [{
+            label: 'Units',
+            data: sortedCats.map(([, v]) => v),
+            backgroundColor: sortedCats.map((_, i) => catColors[i % catColors.length] + 'cc'),
+            borderColor:     sortedCats.map((_, i) => catColors[i % catColors.length]),
+            borderWidth: 1.5,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.06)' } }
+          }
+        }
+      });
+
+      // 10. Recent products table — use new field names
+      document.getElementById('dash-tbody').innerHTML = [...products]
+        .sort((a, b) => b.id - a.id)
+        .slice(0, 10)
+        .map(p => {
+          const lowBadge = isLowStock(p) ? ' ' + lowStockBadge() : '';
+          return '<tr class="' + (isLowStock(p) ? 'low-stock-row' : '') + '">' +
+            '<td><strong>' + p.name + '</strong></td>' +
+            '<td>' + p.category_name + '</td>' +
+            '<td>' + p.quantity + '</td>' +
+            '<td>' + formatDate(p.production_date) + '</td>' +
+            '<td>' + formatDate(p.expiry_date) + '</td>' +
+            '<td>' + statusBadge(getStatus(p.expiry_date)) + lowBadge + '</td>' +
+            '</tr>';
+        }).join('');
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperStock — Import / Export</title>
+  <link rel="stylesheet" href="assets/css/style.css"/>
+  <style>
+    .ie-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; max-width:800px; }
+    .ie-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:2rem; }
+    .ie-card h3 { font-size:1rem; margin-bottom:0.5rem; color:var(--text); }
+    .ie-card p  { font-size:0.83rem; color:var(--muted); margin-bottom:1.2rem; line-height:1.6; }
+    .ie-actions { display:flex; gap:0.75rem; flex-wrap:wrap; }
+    .ie-note { font-size:0.76rem; color:var(--warning); margin-top:0.75rem; }
+
+    /* CSV format hint box */
+    .csv-hint {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin-top: 1rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .csv-hint strong { color: var(--primary); }
+    .csv-hint code {
+      background: rgba(56,189,248,0.08);
+      border: 1px solid rgba(56,189,248,0.15);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      font-size: 0.76rem;
+      color: var(--primary);
+    }
+
+    /* Progress bar */
+    .import-progress {
+      margin-top: 1rem;
+      display: none;
+    }
+    .import-progress.visible { display: block; }
+    .progress-bar-wrap {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 0.4rem;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0ea5e9, #6366f1);
+      border-radius: 20px;
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+    .progress-label {
+      font-size: 0.76rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media(max-width:600px){ .ie-grid{ grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+
+  <div id="header-placeholder"></div>
+
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+
+    <main id="main-content">
+
+      <h2>📂 Import / Export Data</h2>
+      <div class="ie-grid">
+
+        <!-- ── Export Card ── -->
+        <div class="ie-card">
+          <h3>📤 Export to CSV</h3>
+          <p>Download your entire inventory as a CSV file. Open it in Excel, Google Sheets, or any spreadsheet app.</p>
+          <div class="ie-actions">
+            <button class="btn-primary" onclick="exportCSV()">⬇️ Export CSV</button>
+          </div>
+
+          <!-- Column reference -->
+          <div class="csv-hint">
+            <strong>Exported columns:</strong><br/>
+            <code>ID</code> <code>Name</code> <code>Category</code> <code>Qty</code>
+            <code>Price</code> <code>Production</code> <code>Expiry</code>
+            <code>Supplier</code> <code>Notes</code>
+          </div>
+        </div>
+
+        <!-- ── Import Card ── -->
+        <div class="ie-card">
+          <h3>📥 Import from CSV</h3>
+          <p>Upload a CSV file to add products to your inventory. The file must match the column format shown below.</p>
+          <div class="ie-actions">
+            <label class="btn-primary" style="cursor:pointer">
+              ⬆️ Import CSV
+              <input type="file" id="import-file" accept=".csv" style="display:none" onchange="importCSV(event)"/>
+            </label>
+          </div>
+          <p class="ie-note">⚠️ This will overwrite all existing inventory data.</p>
+
+          <!-- Progress bar (shown during import) -->
+          <div class="import-progress" id="import-progress">
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill" id="progress-fill"></div>
+            </div>
+            <div class="progress-label" id="progress-label">Importing...</div>
+          </div>
+
+          <!-- Format hint -->
+          <div class="csv-hint">
+            <strong>Required CSV format (first row = headers):</strong><br/>
+            <code>Name</code> <code>Category</code> <code>Qty</code>
+            <code>Price</code> <code>Production</code> <code>Expiry</code>
+            <code>Supplier</code> <code>Notes</code><br/><br/>
+            • Dates must be <code>YYYY-MM-DD</code><br/>
+            • <code>Supplier</code> and <code>Notes</code> are optional<br/>
+            • <code>Category</code> must match an existing category name<br/>
+            • The <code>ID</code> column is ignored if present
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div><!-- /.layout -->
+
+  <div id="footer-placeholder"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/shared.js?v=2"></script>
+  <script>
+
+    // ── Page init ────────────────────────────────────────────
+    (async function init() {
+      const currentUser = await requireAuth();
+      if (!currentUser) return;
+      injectHeader('importexport.html');
+      injectFooter();
+      await getSettings();
+      const products = await getProducts();
+      updateAlertBadge(products);
+    })();
+
+
+    // ── Export CSV ───────────────────────────────────────────
+    // Fetches all products and builds a CSV string, then triggers
+    // a file download in the browser.
+    async function exportCSV() {
+      try {
+        const products = await getProducts();
+
+        if (products.length === 0) {
+          showToast('⚠️ No products to export.', true);
+          return;
+        }
+
+        // Header row
+        const headers = ['ID', 'Name', 'Category', 'Qty', 'Price', 'Production', 'Expiry', 'Supplier', 'Notes'];
+
+        // Data rows — wrap text fields in quotes to handle commas inside values
+        const rows = products.map(p => [
+          p.id,
+          csvQuote(p.name),
+          csvQuote(p.category_name),
+          p.quantity,
+          parseFloat(p.price).toFixed(2),
+          p.production_date,
+          p.expiry_date,
+          csvQuote(p.supplier || ''),
+          csvQuote(p.notes    || '')
+        ].join(','));
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+        // Generate filename with today's date
+        const today = new Date().toISOString().slice(0, 10);
+        triggerDownload(blob, 'superstock-inventory-' + today + '.csv');
+
+        showToast('✅ CSV exported — ' + products.length + ' products.');
+      } catch (err) {
+        // apiFetch already showed the error toast
+      }
+    }
+
+    // Wraps a value in double-quotes and escapes any internal double-quotes
+    // e.g.  She said "hello"  →  "She said ""hello"""
+    function csvQuote(value) {
+      const str = String(value ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    }
+
+
+    // ── Import CSV ───────────────────────────────────────────
+    // Reads the uploaded CSV file, parses each row, deletes all
+    // existing products, then re-adds each row via the API.
+    async function importCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Reset the file input so the same file can be re-selected later
+      event.target.value = '';
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const raw = e.target.result;
+
+        // ── Parse the CSV ──────────────────────────────────
+        const lines = raw.split(/\r?\n/).filter(line => line.trim() !== '');
+
+        if (lines.length < 2) {
+          showToast('❌ CSV file is empty or has no data rows.', true);
+          return;
+        }
+
+        // Parse header row to find column positions dynamically
+        // This makes the import tolerant of extra columns or different ordering
+        const headerRow  = parseCSVLine(lines[0]);
+        const colIndex   = buildColumnIndex(headerRow);
+
+        // Validate that the minimum required columns exist
+        const required = ['name', 'category', 'qty', 'price', 'production', 'expiry'];
+        const missing  = required.filter(col => colIndex[col] === undefined);
+
+        if (missing.length > 0) {
+          showToast('❌ Missing columns: ' + missing.join(', '), true);
+          return;
+        }
+
+        // Parse data rows (skip header)
+        const dataRows = lines.slice(1).map(line => parseCSVLine(line));
+
+        // ── Load categories for name → id lookup ──────────
+        let categories;
+        try {
+          categories = await getCategories();
+        } catch (err) {
+          return;
+        }
+
+        // Build a map: lowercase category name → id
+        // e.g. { 'dairy': 1, 'bakery': 2, ... }
+        const catMap = {};
+        categories.forEach(c => {
+          catMap[c.name.toLowerCase()] = c.id;
+        });
+
+        // ── Delete existing products ───────────────────────
+        try {
+          const existing = await getProducts();
+          if (existing.length > 0) {
+            await bulkDeleteProducts(existing.map(p => p.id));
+          }
+        } catch (err) {
+          showToast('❌ Could not clear existing products.', true);
+          return;
+        }
+
+        // ── Import rows one by one ─────────────────────────
+        showProgress(true);
+
+        let imported = 0;
+        let skipped  = 0;
+        const total  = dataRows.length;
+
+        for (let i = 0; i < total; i++) {
+          const cols = dataRows[i];
+
+          // Skip completely empty rows
+          if (cols.every(c => c.trim() === '')) { skipped++; continue; }
+
+          // Extract values using the column index map
+          const name       = (cols[colIndex['name']]       || '').trim();
+          const catName    = (cols[colIndex['category']]   || '').trim();
+          const qty        = (cols[colIndex['qty']]        || '0').trim();
+          const price      = (cols[colIndex['price']]      || '0').trim();
+          const production = (cols[colIndex['production']] || '').trim();
+          const expiry     = (cols[colIndex['expiry']]     || '').trim();
+          const supplier   = colIndex['supplier'] !== undefined ? (cols[colIndex['supplier']] || '').trim() : '';
+          const notes      = colIndex['notes']    !== undefined ? (cols[colIndex['notes']]    || '').trim() : '';
+
+          // Resolve category name to ID
+          const category_id = catMap[catName.toLowerCase()];
+          if (!category_id) {
+            skipped++;
+            updateProgressBar(i + 1, total, imported, skipped);
+            continue; // skip rows with unknown category
+          }
+
+          try {
+            await addProduct({ name, category_id, quantity: qty, price, production_date: production, expiry_date: expiry, supplier, notes });
+            imported++;
+          } catch (err) {
+            skipped++; // validation failed — skip this row
+          }
+
+          updateProgressBar(i + 1, total, imported, skipped);
+        }
+
+        showProgress(false);
+
+        if (imported === 0) {
+          showToast('⚠️ No products were imported. Check your CSV format.', true);
+        } else {
+          showToast('✅ Imported ' + imported + ' product(s). Skipped: ' + skipped + '.');
+        }
+
+        const products = await getProducts();
+        updateAlertBadge(products);
+      };
+
+      reader.readAsText(file);
+    }
+
+
+    // ── CSV line parser ──────────────────────────────────────
+    // Handles quoted fields that may contain commas or newlines.
+    // e.g.  1,"Milk, Full Fat",Dairy  →  ['1', 'Milk, Full Fat', 'Dairy']
+    function parseCSVLine(line) {
+      const result = [];
+      let current  = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const ch   = line[i];
+        const next = line[i + 1];
+
+        if (inQuotes) {
+          if (ch === '"' && next === '"') {
+            // Escaped double-quote inside a quoted field: "" → "
+            current += '"';
+            i++; // skip the second quote
+          } else if (ch === '"') {
+            // End of quoted field
+            inQuotes = false;
+          } else {
+            current += ch;
+          }
+        } else {
+          if (ch === '"') {
+            inQuotes = true; // start of quoted field
+          } else if (ch === ',') {
+            result.push(current);
+            current = '';
+          } else {
+            current += ch;
+          }
+        }
+      }
+
+      result.push(current); // push the last field
+      return result;
+    }
+
+
+    // ── Column index builder ─────────────────────────────────
+    // Maps normalised header names to their column positions.
+    // Accepts flexible header names (case-insensitive, trims spaces).
+    //
+    // Supported aliases:
+    //   qty / quantity
+    //   production / production_date / prod
+    //   expiry / expiry_date / exp
+    //   category / category_name
+    function buildColumnIndex(headers) {
+      const index = {};
+      headers.forEach((h, i) => {
+        const key = h.trim().toLowerCase();
+        if (key === 'name')                              index['name']       = i;
+        if (key === 'category' || key === 'category_name') index['category'] = i;
+        if (key === 'qty'      || key === 'quantity')    index['qty']        = i;
+        if (key === 'price')                             index['price']      = i;
+        if (key === 'production' || key === 'production_date' || key === 'prod') index['production'] = i;
+        if (key === 'expiry'   || key === 'expiry_date'  || key === 'exp')   index['expiry']     = i;
+        if (key === 'supplier')                          index['supplier']   = i;
+        if (key === 'notes')                             index['notes']      = i;
+        // 'id' is intentionally ignored — the DB assigns a new ID on import
+      });
+      return index;
+    }
+
+
+    // ── Progress bar helpers ─────────────────────────────────
+    function showProgress(visible) {
+      document.getElementById('import-progress').classList.toggle('visible', visible);
+      if (!visible) {
+        document.getElementById('progress-fill').style.width  = '0%';
+        document.getElementById('progress-label').textContent = 'Importing...';
+      }
+    }
+
+    function updateProgressBar(done, total, imported, skipped) {
+      const pct = Math.round((done / total) * 100);
+      document.getElementById('progress-fill').style.width  = pct + '%';
+      document.getElementById('progress-label').textContent =
+        done + ' / ' + total + ' rows processed — ' + imported + ' imported, ' + skipped + ' skipped';
+    }
+
+
+    // ── Download helper ──────────────────────────────────────
+    function triggerDownload(blob, filename) {
+      const a = Object.assign(document.createElement('a'), {
+        href:     URL.createObjectURL(blob),
+        download: filename
+      });
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }
+
+  </script>
+</body>
+</html>
